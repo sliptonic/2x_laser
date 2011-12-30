@@ -42,11 +42,11 @@ net laser-chiller => parport.0.pin-01-out
 net xstep => parport.0.pin-02-out
 setp parport.0.pin-02-out-reset 1
 net xdir => parport.0.pin-03-out
-setp parport.0.pin-03-out-invert 1
+setp parport.0.pin-03-out-invert 0
 net ystep => parport.0.pin-04-out
 setp parport.0.pin-04-out-reset 1
 net ydir => parport.0.pin-05-out
-setp parport.0.pin-05-out-invert 1
+setp parport.0.pin-05-out-invert 0
 net ustep => parport.0.pin-06-out
 setp parport.0.pin-06-out-reset 1
 net udir => parport.0.pin-07-out
