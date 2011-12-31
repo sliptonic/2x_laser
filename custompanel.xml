@@ -1,0 +1,64 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pyvcp>
+<!-- 
+Include your PyVCP panel here.
+The contents of this file will not be overwritten when you run stepconf again.
+-->
+<!-- Test panel for the parallel port cfg for out -->
+    <hbox>
+        <relief>RIDGE</relief>
+        <bd>2</bd>
+        <checkbutton>
+            <halpin>"btn01"</halpin>
+            <text>"Chiller/Assist"</text>
+        </checkbutton>
+        <led>
+            <halpin>"led-01"</halpin>
+            <size>25</size>
+            <on_color>"green"</on_color>
+            <off_color>"red"</off_color>
+       </led>
+    </hbox>
+    <hbox>
+        <relief>RIDGE</relief>
+        <bd>2</bd>
+        <checkbutton>
+            <halpin>"btn02"</halpin>
+            <text>"Blower"</text>
+        </checkbutton>
+        <led>
+            <halpin>"led-02"</halpin>
+            <size>25</size>
+            <on_color>"green"</on_color>
+            <off_color>"red"</off_color>
+       </led>
+    </hbox>
+    <hbox>
+        <relief>RIDGE</relief>
+        <bd>2</bd>
+        <label>
+            <text>"Stepper Enable"</text>
+            <font>("Helvetica",14)</font>
+        </label>
+        <led>
+            <halpin>"led-03"</halpin>
+            <size>25</size>
+            <on_color>"green"</on_color>
+            <off_color>"red"</off_color>
+       </led>
+    </hbox>
+<hbox>
+        <relief>RIDGE</relief>
+        <bd>2</bd>
+        <label>
+            <text>"Cover"</text>
+            <font>("Helvetica",14)</font>
+        </label>
+        <led>
+            <halpin>"led-13"</halpin>
+            <size>25</size>
+            <on_color>"green"</on_color>
+            <off_color>"red"</off_color>
+        </led>
+    </hbox>
+  </pyvcp>

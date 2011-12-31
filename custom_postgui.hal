@@ -1,3 +1,9 @@
 # Include your customized HAL commands here
 # The commands in this file are run after the AXIS GUI (including PyVCP panel) starts
-
+net pin13 parport.0.pin-13-in-not pyvcp.led-13
+net laser-chiller => pyvcp.led-01
+net xenable => pyvcp.led-03
+#net pin01 parport.0.pin-01-out pyvcp.led-01
+#net pin02 pyvcp.btn02 parport.0.pin-08-out pyvcp.led-02
+#net pin03 pyvcp.btn03 parport.0.pin-16-out pyvcp.led-03
+start
