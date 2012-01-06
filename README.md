@@ -75,19 +75,31 @@ that removes smoke from the laser.
 Raster Engraving
 ----------------
 
-Raster operation is done by calling a subroutine O144 from within gcode
+Raster operation is done by calling a subroutine O145 from within gcode
 with several parameters.  It invokes M144 and M145 which are external
 python scripts.  Those stream data back into EMC2's realtime engine while
-the subroutine in O144 sweeps out the raster pattern.
+the subroutine in O145 sweeps out the raster pattern.
 
 Due to limitations in EMC2 there is no way to pass a filename for the
 rastering process.  Instead you must put a number in the filename, such
 as "flower-123.png".  The text name is for your convenience, but only the
-"123" will select the image from within gcode.
+"123" will select the image from within gcode.  The program will search for
+the wildcard `*-123.*` in [RASTER]IMAGE_PATH (can be a colon separated list)
+and use the first one it finds.  If that is not configured in your INI it
+will default to your home directory.  If it does not find the file it will
+prompt you with a file selector.
+
+The image can be of any size or shape and will be rescaled and dithered to
+black and white to match the parameters of the engraving (see below).  You
+can provide a black and white image with the correct DPI and size and it will
+be used unmodified.
 
 To do a raster engraving, the spindle must be enabled with M3 (as always
 for any laser firing operation).  However, the pulse setting does not
-matter and all pulsing is controlled by the engraving process:
+matter and all pulsing is controlled by the engraving process.
+
+The O145 script will operate in inches or mm (G20 or G21) and all sizes
+just need to be in the appropriate units:
 
     M3 S1         (enable spindle)
     M68 E0 Q0.2   (choose an engraving power)
@@ -96,11 +108,11 @@ matter and all pulsing is controlled by the engraving process:
 
 Where the parameters are:
 
-* pic - number used to select the image file (with the wildcard *-pic.*)
+* pic - number used to select the image file (with the wildcard `*-pic.*`)
 * x, y - the upper lefthand corner of the engraving (the spot where the image's (0,0) will appear)
-* w, y - the width and height of the engraving
-* x-gap - mm per pixel column (25.4/DPI)
-* y-gap - mm per pixel row (25.4/DPI)
+* w, h - the width and height of the engraving
+* x-gap - units per pixel column (in mm, 25.4/DPI, in inches 1/DPI)
+* y-gap - units per pixel row (see x-gap)
 * overscan - overshoot of the laser carriage to either side of the image
 
 The x-gap and y-gap are independent.  Choosing a y-gap of 0.085mm (about
@@ -141,8 +153,11 @@ Installation
 
 This is based on an installed copy of the EMC2 Ubuntu 10.04 LTS Live CD.
 
-Install the custom laser pulse HAL component with:
+Install the custom laser pulse HAL component.  The first command installs
+the necessary tools in case you don't have them.  For more information see
+http://wiki.linuxcnc.org/emcinfo.pl?ContributedComponents
 
+    sudo apt-get install emc2-dev build-essential
     sudo comp --install laserfreq.comp
 
 The configuration will not work without that component installed.
@@ -159,7 +174,7 @@ latency-test program:  http://wiki.linuxcnc.org/emcinfo.pl?Latency-Test
 
 My system was able to use a [EMCMOT]BASE_PERIOD of 27000 (27us) which
 (along with the microstepping setting) dictates my system's maximum velocity.
-If you chnage SCALE or BASE_PERIOD you will need to compute new MAX_VELOCITY
+If you change SCALE or BASE_PERIOD you will need to compute new MAX_VELOCITY
 settings for each axis.
 
 If your stepper configuration does not match what is described above,
@@ -181,3 +196,20 @@ If your stepper configuration varies significantly from Bart's Pololu
 board, you may need to just start by running "stepconf" to find the
 several detailed parameters required of your stepper driver.  You can then
 port these values into the 2x_Laser HAL file.
+
+Acknowledgements
+================
+
+Jedediah Smith at Hacklab Toronto created an EMC2 configuration for their
+laser which opened my eyes to how powerful the HAL is.  In particular the
+use of halstreamer synchronized with an external script is key to the
+raster implementation.
+
+Barton Dring's buildlog.net 2.x laser is one of the best open hardware
+projects on the net.  The engineering work and documentation is second to
+none.  Without his work on the plans and kits I wouldn't own a laser cutter.
+
+Dirk Van Essendelft has done numerous experiments in DIY lasercutting
+which he has documented on the buildlog.net forums.  His research into the
+behavior of PPI with our CO2 lasers lead to improved the performance of the
+PPI implementation in this configuration.
