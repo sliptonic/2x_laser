@@ -1,2 +1,5 @@
 # Include your customized HAL commands here
 # This file will not be overwritten when you run stepconf again
+
+#for touchswitch
+loadusr -w classicladder --nogui touch.clp

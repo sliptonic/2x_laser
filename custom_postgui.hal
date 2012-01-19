@@ -6,4 +6,23 @@ net xenable => pyvcp.led-03
 #net pin01 parport.0.pin-01-out pyvcp.led-01
 #net pin02 pyvcp.btn02 parport.0.pin-08-out pyvcp.led-02
 #net pin03 pyvcp.btn03 parport.0.pin-16-out pyvcp.led-03
+
+# set up the z-axis touchoff button
+net remote-u-axis-touchoff classicladder.0.in-00 <= pyvcp.u-axis-touchoff
+# set to mdi mode
+# show pin
+net mode halui.mode.is-mdi => classicladder.0.in-01
+# wait for motion to finish
+net in_pos motion.in-position => classicladder.0.in-02
+
+# mdi command 1 MDI_COMMAND = G38.2 U-1 F500
+net u-touchoff classicladder.0.out-00 => halui.mdi-command-00
+
+# mdi command 2 MDI_COMMAND = G92 U0.250
+net u-zero classicladder.0.out-01 => halui.mdi-command-01
+
+# mdi command 3 MDI_COMMAND = G0 U.75
+net rapid-away classicladder.0.out-02 => halui.mdi-command-02
+
+
 start

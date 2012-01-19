@@ -61,4 +61,11 @@ The contents of this file will not be overwritten when you run stepconf again.
             <off_color>"red"</off_color>
         </led>
     </hbox>
+	<labelframe text="Material">
+		<button>
+		<halpin>"u-axis-touchoff"</halpin>
+		<text>"Touchoff"</text>
+		<font>('Fixed',12)</font>
+		</button>
+	</labelframe>
   </pyvcp>
