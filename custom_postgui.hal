@@ -18,7 +18,7 @@ net in_pos motion.in-position => classicladder.0.in-02
 # mdi command 1 MDI_COMMAND = G38.2 U-1 F500
 net u-touchoff classicladder.0.out-00 => halui.mdi-command-00
 
-# mdi command 2 MDI_COMMAND = G92 U0.250
+# mdi command 2 MDI_COMMAND = G92 U0.050
 net u-zero classicladder.0.out-01 => halui.mdi-command-01
 
 # mdi command 3 MDI_COMMAND = G0 U.75
