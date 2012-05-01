@@ -1,18 +1,18 @@
 #!/usr/bin/env python
 
 import os, re
-import emc
+import linuxcnc
 
-emc_ini = None
+linuxcnc_ini = None
 
 def open_raster_fifo(mode):
-    global emc_ini
-    if emc_ini is None:
-	emc_ini = emc.ini('2x_Laser.ini')
-    pipefile = emc_ini.find('RASTER', 'PIPE_FILE')
+    global linuxcnc_ini
+    if linuxcnc_ini is None:
+	linuxcnc_ini = linuxcnc.ini('2x_Laser.ini')
+    pipefile = linuxcnc_ini.find('RASTER', 'PIPE_FILE')
 
     if pipefile is None:
-	pipefile = '/tmp/emc2_raster_fifo';
+	pipefile = '/tmp/linuxcnc_raster_fifo';
 
     try:
 	return open(pipefile, mode)
