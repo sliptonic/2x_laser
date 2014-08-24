@@ -1,10 +1,35 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <pyvcp>
-<!-- 
-Include your PyVCP panel here.
-The contents of this file will not be overwritten when you run stepconf again.
--->
-<!-- Test panel for the parallel port cfg for out -->
+<hbox>
+    <label>
+       <text>"Cycle Time"</text>
+       <font>("Helvetica",14)</font>
+     </label>
+     <u32>
+        <halpin>"time-hours"</halpin>
+        <font>("Helvetica",14)</font>
+        <format>"2d"</format>
+      </u32>
+      <label>
+        <text>":"</text>
+        <font>("Helvetica",14)</font>
+      </label>
+      <u32>
+        <halpin>"time-minutes"</halpin>
+        <font>("Helvetica",14)</font>
+        <format>"02d"</format>
+      </u32>
+      <label>
+        <text>":"</text>
+        <font>("Helvetica",14)</font>
+        </label>
+      <u32>
+        <halpin>"time-seconds"</halpin>
+        <font>("Helvetica",14)</font>
+        <format>"02d"</format>
+      </u32>
+    </hbox>
+
     <hbox>
         <relief>RIDGE</relief>
         <bd>2</bd>
@@ -67,5 +92,47 @@ The contents of this file will not be overwritten when you run stepconf again.
 		<text>"Touchoff"</text>
 		<font>('Fixed',12)</font>
 		</button>
-	</labelframe>
+  </labelframe>
+  <labelframe text="Pulses">
+        <hbox>
+            <led halpin="duty-cycle-mode"/>
+            <label text="Duty Cycle"/>
+            <led halpin="ppi-mode"/>
+            <label text="PPI"/>
+        </hbox>
+        <bar>
+            <halpin>"spindle"</halpin>
+            <max_>500</max_>
+        </bar>
+        <hbox>
+            <led halpin="laser-continuous"/>
+            <label text="Continuous fire"/>
+        </hbox>
+    </labelframe>
+
+    <labelframe text="Power">
+        <bar>
+            <halpin>"power"</halpin>
+            <max_>100</max_>
+        </bar>
+    </labelframe>
+
+    <labelframe text="Triggers">
+        <hbox>
+            <led halpin="laser-raster"/>
+            <label text="Raster"/>
+        </hbox>
+
+        <hbox>
+            <led halpin="laser-dout"/>
+            <label text="Digital Out 0"/>
+        </hbox>
+        <hbox>
+            <led halpin="laser-magic-z"/>
+            <label text="Magic Z"/>
+            <button halpin="z-to-zero" text="Reset Z"/>
+        </hbox>
+    </labelframe>
+
+
   </pyvcp>

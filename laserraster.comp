@@ -1,0 +1,279 @@
+component laserraster "Laser raster engrave engine";
+author "Jeremy Van Grinsven <jv4779@gmail.com>";
+option extra_setup yes;
+
+pin in bit enable = 0 "Enable component";
+pin in float data_index = 0 "Input raster data index";
+pin in float data_1 = 0 "Input raster data 1";
+pin in bit stepgen-dir = 0 "Direction pin from raster axis stepgen";
+pin in bit stepgen-step = 0 "Step pin from raster axis stepgen";
+pin out bit raster-active = 0 "Raster data loaded and laser can fire";
+pin out bit laser-on = 0 "Laser on signal";
+
+function update fp "Read the raster data";
+function make_pulses nofp "Generate laser pulses";
+
+param rw s32 laser_on_delay = 0 "Time in ns between triggering and the laser will fire";
+
+param r float raster-speed = 0 "Speed of raster, machine units/min";
+param r s32 raster-direction = 1 "Sweep direction, 1=neg-to-pos, -1=pos-to-neg";
+param r float dots-per-unit = 0 "Dots per machine unit";
+param r s32 bits-per-float = 0 "Bits of bitmap data per data-XX";
+param r s32 laser-on-time = 0 "Laser pulse time per dot, ns";
+param r float raster-lead-in = 0 "Lead in distance, machine units";
+param r s32 rawcounts = 0 "Calculated step count from stepgen step/dir";
+
+license "GPL";
+;;
+
+#include <rtapi_math.h>
+#include <rtapi_string.h>
+#include "strtod.h"
+
+
+static char* linear_units;
+RTAPI_MP_STRING(linear_units,"Specify the machine units of the raster axis");
+
+static char* axis_scale;
+RTAPI_MP_STRING(axis_scale,"Raster axis scale");
+
+static char* axis_min_limit;
+RTAPI_MP_STRING(axis_min_limit,"Raster axis min limit");
+
+static char* axis_max_limit;
+RTAPI_MP_STRING(axis_max_limit,"Raster axis max limit");
+
+#define RASTER_HEADER_DEBUG 1
+#define RASTER_DATA_DEBUG 1
+#define RASTER_POS_DEBUG 1
+
+// calculated
+static hal_s32_t m_delaySteps = 0;
+static hal_s32_t m_startStep = 0;
+static hal_s32_t m_endStep = 0;
+static int m_gcodeIsMetric = 0;
+static int m_machineIsMetric = 0;
+static hal_float_t m_convertScale = 1;
+static hal_float_t m_axisScale = 0;
+static hal_float_t m_axisLength = 0;
+
+// step bitmask storage
+static int m_stepMaskLen = 0;
+typedef hal_u32_t step_mask_type;
+const int m_stepMaskBits = (sizeof(step_mask_type)*8);
+static step_mask_type* m_stepMask = 0;
+
+FUNCTION(update) {
+    int i;
+    static hal_s32_t s_lastIndex = 0;
+    static int s_rasterCanInit = 0;
+
+    hal_s32_t data_index_s32 = data_index;
+    long long int data_1_s64 = data_1;
+
+    if ( !enable ) return;
+
+    if ( data_index_s32 != s_lastIndex ) {
+        if ( data_index_s32 <= 0 ) {
+	    if ( data_index_s32 == 0 ) {
+                raster_active = 0;
+                s_rasterCanInit = 0;
+#ifdef RASTER_HEADER_DEBUG
+                rtapi_print("laserraster.comp: raster off\n");
+#endif
+	    } else if ( data_index_s32 == -1 ) {
+	        // clear the step data array
+	        for (i=0;i<m_stepMaskLen;i++) { m_stepMask[i]=0; }
+                raster_active = 0;
+                s_rasterCanInit = 1;
+#ifdef RASTER_HEADER_DEBUG
+                rtapi_print("laserraster.comp: starting raster line\n");
+#endif
+	    } else {
+#ifdef RASTER_HEADER_DEBUG
+	        rtapi_print("laserraster.comp: header line %i = %f\n",data_index_s32,data_1);
+#endif
+	        switch ( data_index_s32 ) {
+	            case -2:
+	    	        m_gcodeIsMetric = data_1_s64;
+		        break;
+	            case -3:
+	    	        raster_speed = data_1;
+		        break;
+	            case -4:
+		        raster_direction = (data_1_s64 > 0 ? 1 : -1);
+		        break;
+	            case -5:
+		        dots_per_unit = data_1;
+		        break;
+	            case -6:
+		        bits_per_float = data_1_s64;
+		        break;
+	            case -7:
+		        laser_on_time = data_1_s64;
+		        break;
+	            case -8:
+		        raster_lead_in = data_1;
+		        break;
+	        }
+	    }
+        } else if ( data_index_s32 > 0 ) {
+	    int i;
+            hal_u32_t src_bit_index_start;
+
+            // we init the raster params on the first data for the line
+            if ( s_rasterCanInit ) {
+                // params are done, lets init
+                if ( !m_machineIsMetric && m_gcodeIsMetric ) {
+                    m_convertScale = 1/25.4;
+                } else if ( m_machineIsMetric && !m_gcodeIsMetric ) {
+                    m_convertScale = 25.4;
+                } else {
+                    m_convertScale = 1;
+                }
+
+                // convert passed in values to machine units
+                raster_speed *= m_convertScale;
+                dots_per_unit *= m_convertScale;
+                raster_lead_in *= m_convertScale;
+
+                m_startStep = rawcounts + raster_lead_in * m_axisScale * raster_direction;
+                m_endStep = m_startStep;
+                m_delaySteps = laser_on_delay * raster_speed / 60 / 1000 / 1000 * m_axisScale;
+                raster_active = 1;
+#ifdef RASTER_HEADER_DEBUG
+                rtapi_print("laserraster.comp: speed=%f %s/min, dots/%s=%f, raster_lead_in=%f %s, axisScale=%f step/%s, axisLength=%f %s\n",
+                    raster_speed,linear_units, linear_units,dots_per_unit, raster_lead_in,linear_units, m_axisScale,linear_units, m_axisLength,linear_units);
+                rtapi_print("laserraster.comp: rawcounts=%i, startStep=%i, delaySteps=%i, machMetric=%i, gcodeMetric=%i, convertScale=%f bpf=%d\n",
+                    rawcounts, m_startStep, m_delaySteps, m_machineIsMetric, m_gcodeIsMetric, m_convertScale, bits_per_float);
+#endif
+                s_rasterCanInit = 0;
+            }
+
+            if ( raster_active ) {
+#ifdef RASTER_DATA_DEBUG
+                rtapi_print("laserraster.comp: index=%d data=%f data_1_s64=0x%x%08x\n",
+                    data_index_s32, data_1, (unsigned int)(data_1_s64>>32), (unsigned int)data_1_s64);
+#endif
+                src_bit_index_start = (data_index_s32-1)*bits_per_float;
+
+                for (i=0;i<bits_per_float;++i) {
+                    hal_u32_t src_bit_index = src_bit_index_start + i;
+                    hal_u32_t scaled_bit_index = src_bit_index*m_axisScale/dots_per_unit;
+                    if ( data_1_s64 & (1LL<<i) ) {
+                        int index_i = scaled_bit_index / m_stepMaskBits;
+                        int index_b = scaled_bit_index % m_stepMaskBits;
+
+                        if ( index_i >=0 && index_i < m_stepMaskLen ) {
+                            m_stepMask[index_i] |= (1<<index_b);
+#ifdef RASTER_DATA_DEBUG
+            	            rtapi_print("laserraster.comp: setting index=%i bit=%i\n",index_i,index_b);
+#endif
+                        }
+                    }
+                    if ( i == bits_per_float-1 ) {
+                        // set the new step end to the scaled bits we just loaded
+                        m_endStep = m_startStep + scaled_bit_index * raster_direction;
+                    }
+                }
+	    }
+        }
+	s_lastIndex = data_index_s32;
+    }
+}
+
+
+FUNCTION(make_pulses) {
+    static hal_s32_t pulse_remain = 0;
+    static hal_s32_t last_stepgen_step = 0;
+    static hal_s32_t last_rawcounts = 0;
+
+    // calculatge rawcounts ourselves because stepgen doesn't
+    // export it as a pin and stepgen.counts requires 
+    // capture-position to run, which is done in servo-thread
+    if ( stepgen_step && !last_stepgen_step ) {
+        if ( stepgen_dir ) {
+            --rawcounts;
+        } else {
+            ++rawcounts;
+        }
+    }
+    last_stepgen_step = stepgen_step;
+
+    if ( !enable ) return;
+
+    if ( pulse_remain > 0 ) {
+	pulse_remain -= period;
+    } else {
+	laser_on = 0;
+    }
+    if ( raster_active ) {
+	hal_s32_t rawcounts_with_delay = rawcounts - m_delaySteps * raster_direction;
+
+        if ( (raster_direction > 0 && rawcounts < last_rawcounts) ||
+	     (raster_direction < 0 && rawcounts > last_rawcounts) )
+	{
+	    // we moved in the wrong direction
+#ifdef RASTER_HEADER_DEBUG
+     	    rtapi_print("laserraster.comp: raster off, moved in wrong direction\n");
+#endif
+ 	    raster_active = 0;
+        }
+	else if ( (raster_direction > 0 && rawcounts_with_delay > m_endStep) ||
+		  (raster_direction < 0 && rawcounts_with_delay < m_endStep) )
+	{
+	    // after end of raster data
+#ifdef RASTER_HEADER_DEBUG
+     	    rtapi_print("laserraster.comp: raster off, past raster data\n");
+#endif
+	    raster_active = 0;
+	}
+	else if ( rawcounts != last_rawcounts && 
+		  ( (raster_direction > 0 && rawcounts_with_delay >= m_startStep) ||
+		    (raster_direction < 0 && rawcounts_with_delay <= m_startStep) ) ) {
+ 	    hal_s32_t bit_index = (rawcounts_with_delay - m_startStep)*raster_direction;
+	    int index_i = bit_index / m_stepMaskBits;
+	    int index_b = bit_index % m_stepMaskBits;
+
+#ifdef RASTER_POS_DEBUG
+     	    rtapi_print("laserraster.comp: rawcounts_with_delay=%d index=%d i=%d b=%d\n",rawcounts_with_delay,bit_index,index_i,index_b);
+#endif
+
+	    if ( index_i >=0 && index_i < m_stepMaskLen ) {
+	        if ( m_stepMask[index_i] & (1<<index_b) ) {
+#ifdef RASTER_POS_DEBUG
+          	    rtapi_print("laserraster.comp: laser-on bit=%u\n",bit_index);
+#endif
+		    laser_on = 1;
+		    pulse_remain = laser_on_time;
+                }
+	    }
+	}
+    }
+    last_rawcounts = rawcounts;
+}
+
+EXTRA_SETUP(){
+    int needed_step_mask_len;
+
+    if ( strcmp(linear_units,"inch")==0 ) {
+        m_machineIsMetric=0;
+    } else if ( strcmp(linear_units,"mm")==0 ) {
+	m_machineIsMetric=1;
+    } else {
+        rtapi_print_msg(RTAPI_MSG_ERR,"laserraster.comp: linear_units='%s' is unknown, use 'inch' or 'mm'\n",linear_units);
+        return -EINVAL;
+    }
+    m_axisScale = strtod(axis_scale,0);
+    m_axisLength = strtod(axis_max_limit,0) - strtod(axis_min_limit,0);
+
+    needed_step_mask_len = ceil(m_axisLength * m_axisScale / m_stepMaskBits);
+
+    m_stepMask = hal_malloc(needed_step_mask_len*sizeof(step_mask_type));
+    m_stepMaskLen = needed_step_mask_len;
+#ifdef RASTER_HEADER_DEBUG
+    rtapi_print("laserraster.comp: allocated step mask len=%d\n",m_stepMaskLen);
+#endif
+    return 0;
+}
+

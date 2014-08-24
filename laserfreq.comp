@@ -1,53 +1,61 @@
 component laserfreq "Pulse driver for CO2 Laser";
 author "Ben Jackson <ben@ben.com>";
-pin in bit enable "Enable pulse generation";
-pin in float velocity "Velocity of the laser head (e.g. motion.current-vel)";
-pin in float pulse-per-unit "How many pulses per unit distance";
+pin in bit enable = 0 "Enable pulse generation";
+pin in float velocity = 0 "Velocity of the laser head (e.g. motion.current-vel)";
+pin in float pulse-per-unit = 0 "How many pulses per unit distance";
 pin out bit pulse "Output firing pulse";
 pin out bit continuous "True if current inputs are causing continuous (not pulsed) output";
-param rw float duration "Duration of each pulse in seconds";
-function make_pulses fp "Add to fast thread to make laser pulses";
+param rw s32 duration "Duration of each pulse in ns";
+
+function make_pulses nofp "Add to fast thread to make laser pulses";
 function update fp "Add to update thread to compute pulse parameters";
+
 variable int updated;
-variable float interval;
-variable float accum;
-variable float pulse_remain;
+param r s32 interval;
+param r s32 accum;
+param r s32 pulse_remain;
 license "GPL";
 ;;
-FUNCTION(update) {
-    if (velocity == 0.0 || pulse_per_unit == 0) {
-	updated = 0;
-    } else {
-	// velocity * pulse-per-unit gives pulses per second
-	// pulse interval is then 1/pps 
-	interval = 1.0 / (velocity * pulse_per_unit);
 
-	updated = 1;
+FUNCTION(update) {
+
+    if (velocity == 0.0 || pulse_per_unit == 0) {
+        updated = 0;
+    } else {
+        if ( pulse_per_unit < 0.0 ) {
+            // duty cycle is just a function of % and duration
+            interval = duration * -100.0 / pulse_per_unit;
+        } else {
+            // velocity * pulse-per-unit gives pulses per second
+            // pulse interval is then 1/pps 
+            interval = 1000000000.0 / (velocity * pulse_per_unit);
+        }
+        updated = 1;
     }
 }
 
 FUNCTION(make_pulses) {
     if (!enable || !updated) {
-	accum = 0;
-	pulse_remain = 0;
-	pulse = 0;
-	continuous = 0;
-	return;
+        accum = 0;
+        pulse_remain = 0;
+        pulse = 0;
+        continuous = 0;
+        return;
     }
 
-    accum += fperiod;
+    accum += period;
     if (accum > interval) {
-	accum -= interval;
-	if (accum > interval)
-	    accum = 0.0;
-	continuous = (pulse_remain > 0);
-	pulse_remain = duration;
+        accum -= interval;
+        if (accum > interval)
+            accum = 0;
+        continuous = (pulse_remain > 0);
+        pulse_remain = duration;
     }
 
     if (pulse_remain > 0) {
-	pulse = 1;
-	pulse_remain -= fperiod;
+        pulse = 1;
+        pulse_remain -= period;
     } else {
-	pulse = 0;
+        pulse = 0;
     }
 }

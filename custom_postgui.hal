@@ -1,5 +1,15 @@
 # Include your customized HAL commands here
 # The commands in this file are run after the AXIS GUI (including PyVCP panel) starts
+
+loadrt abs
+addf abs.0 servo-thread
+net laser-freq => abs.0.in
+
+net laser-freq-duty-cycle <= abs.0.is-negative => pyvcp.duty-cycle-mode
+net laser-freq-ppi <= abs.0.is-positive => pyvcp.ppi-mode
+net laser-freq-abs <= abs.0.out => pyvcp.spindle
+net laser-power-cmd => pyvcp.power
+
 net pin13 parport.0.pin-13-in-not pyvcp.led-13
 net laser-chiller => pyvcp.led-01
 net xenable => pyvcp.led-03
@@ -14,15 +24,25 @@ net remote-u-axis-touchoff classicladder.0.in-00 <= pyvcp.u-axis-touchoff
 net mode halui.mode.is-mdi => classicladder.0.in-01
 # wait for motion to finish
 net in_pos motion.in-position => classicladder.0.in-02
-
 # mdi command 1 MDI_COMMAND = G38.2 U-1 F500
 net u-touchoff classicladder.0.out-00 => halui.mdi-command-00
-
 # mdi command 2 MDI_COMMAND = G92 U0.050
 net u-zero classicladder.0.out-01 => halui.mdi-command-01
-
 # mdi command 3 MDI_COMMAND = G0 U.75
 net rapid-away classicladder.0.out-02 => halui.mdi-command-02
 
+#net laser-master => pyvcp.laser-master
+#net laser-raster => pyvcp.laser-raster
+
+net laser-dout => pyvcp.laser-dout
+net laser-continuous <= laserfreq.0.continuous => pyvcp.laser-continuous
+net laser-magic-z => pyvcp.laser-magic-z
+
+loadrt time
+addf time.0 servo-thread
+net cycle-timer time.0.start <= halui.program.is-running
+net cycle-seconds pyvcp.time-seconds <= time.0.seconds
+net cycle-minutes pyvcp.time-minutes <= time.0.minutes
+net cycle-hours pyvcp.time-hours <= time.0.hours
 
 start

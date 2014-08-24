@@ -12,6 +12,16 @@ setp parport.0.reset-time 1000
 loadrt stepgen step_type=0,0,0
 loadrt pwmgen output_type=0
 loadrt classicladder_rt numPhysInputs=15 numPhysOutputs=15 numS32in=10 numS32out=10 numFloatIn=10 numFloatOut=10
+loadrt laserfreq
+
+loadrt laserraster linear_units=[TRAJ]LINEAR_UNITS axis_scale=[AXIS_0]SCALE axis_min_limit=[AXIS_0]MIN_LIMIT axis_max_limit=[AXIS_0]MAX_LIMIT
+
+addf laserfreq.0.make-pulses laser-thread
+addf laserfreq.0.update servo-thread
+addf laserraster.0.make-pulses laser-thread
+addf laserraster.0.update servo-thread
+
+
 
 addf parport.0.read base-thread
 addf stepgen.make-pulses base-thread
@@ -28,17 +38,21 @@ addf stepgen.update-freq servo-thread
 addf pwmgen.update servo-thread
 
 net laser-power-cmd <= motion.analog-out-00 => pwmgen.0.value
+
+#parallel port output to laser PWM
 net laser-pwm <= pwmgen.0.pwm
 # or tie pwmgen.0.enable to dout-00??
 setp pwmgen.0.enable 1
+setp pwmgen.0.max-dc 0.7
+
 # pwm-freq 0 means PDM (pulse density modulation)
 setp pwmgen.0.pwm-freq 0
-setp pwmgen.0.scale 1
-setp pwmgen.0.offset 0
+setp pwmgen.0.scale 200
+setp pwmgen.0.offset 0.1
 setp pwmgen.0.dither-pwm true
 
-net dout-02 <= motion.digital-out-02
-net din-02 => motion.digital-in-02
+#net dout-02 <= motion.digital-out-02
+#net din-02 => motion.digital-in-02
 
 net laser-chiller => parport.0.pin-01-out 
 net xstep => parport.0.pin-02-out
@@ -123,88 +137,31 @@ net laser-master <= motion.spindle-on
 # M62/M63 coordinated or M64/M65 immediate firing:
 net laser-dout <= motion.digital-out-00
 
+
+###############################
+setp laserraster.0.enable 1
+setp laserraster.0.laser-on-delay [LASER]TRIGGER_DELAY
+net raster-data-index <= motion.analog-out-01 => laserraster.0.data-index
+net raster-data-1 <= motion.analog-out-02 => laserraster.0.data-1
+net xstep => laserraster.0.stepgen-step
+net xdir => laserraster.0.stepgen-dir
+net laser-raster <= laserraster.0.laser-on
+
 ########################
 
-loadrt laserfreq
-addf laserfreq.0.make-pulses laser-thread
-addf laserfreq.0.update servo-thread
+
 setp laserfreq.0.duration [LASER]PULSED_CUT_DURATION
 net current-vel motion.current-vel => laserfreq.0.velocity
 net laser-freq motion.spindle-speed-out => laserfreq.0.pulse-per-unit
+net laser-freq-trick-axis-rev motion.spindle-reverse
 #net laser-dout => laserfreq.0.enable
 setp laserfreq.0.enable 1
 net laser-pulsed <= laserfreq.0.pulse
 
-########################
-
-# XXX configurable axis 0
-
-# Compute motion-offset by observing how it affects the cmd so we can
-# apply it manually to the fb.  That allows us to use axis.0.position-fb
-# directly (at base-thread rate) rather than waiting for servo-thread
-# do do the same math and give us axis.N.joint-pos-fb
-loadrt sum2 names=motion-offset-sub,motion-offset-apply
-addf motion-offset-sub servo-thread
-setp motion-offset-sub.gain1 -1
-net xpos-jcmd axis.0.joint-pos-cmd => motion-offset-sub.in0
-net xpos-cmd  axis.0.motor-pos-cmd => motion-offset-sub.in1
-net motion-offset                  <= motion-offset-sub.out
-
-addf motion-offset-apply laser-thread
-net xpos-fb       => motion-offset-apply.in0
-net motion-offset => motion-offset-apply.in1
-net raster-pos-fb <= motion-offset-apply.out
-
-
-loadrt comp names=raster-pos-gt-comp,laser-magic-z-comp
-loadrt lut5 names=raster-read-lut,raster-fire-lut,laser-final-lut
-
-loadrt streamer depth=256 cfg=bbf
-
-# The order of addf determines the order of execution.
-# Order these so that the inputs cascade correctly to the outputs:
-addf raster-pos-gt-comp laser-thread
-addf raster-read-lut laser-thread
-addf streamer.0 laser-thread
-addf raster-fire-lut laser-thread
-addf laser-final-lut laser-thread
-
-net raster-fire  <= streamer.0.pin.0
-net raster-rev   <= streamer.0.pin.1
-net raster-pos   <= streamer.0.pin.2
-net raster-empty <= streamer.0.empty
-net raster-read  => streamer.0.enable
-
-# has the raster reached the target?
-# raster-pos-gt := raster-pos-fb > raster-pos
-net raster-pos     => raster-pos-gt-comp.in0
-net raster-pos-fb  => raster-pos-gt-comp.in1
-net raster-pos-gt  <= raster-pos-gt-comp.out
-
-# equation for reading the stream:
-# 1) XXX you can't avoid reading when empty or the state never changes
-# 2) flush (read all) when not running (M5 / laser-master off)
-# 3) when the laser position passes the target position in the right direction
-# raster-read := (~laser-master | (raster-pos-gt ^ raster-rev))
-#setp raster-read-lut.function 0x15511551 (with raster-empty)
-setp raster-read-lut.function 0x3ff33ff3
-net raster-empty  => raster-read-lut.in-0
-net laser-master  => raster-read-lut.in-1
-net raster-pos-gt => raster-read-lut.in-2
-net raster-rev    => raster-read-lut.in-3
-net raster-read   <= raster-read-lut.out
-
-# equation for firing the laser:
-# 1) never fire when empty (underflow or job finished)
-# 2) fire when raster-fire enabled
-# laser-raster := ~raster-empty & raster-fire
-setp raster-fire-lut.function 0x44444444
-net raster-empty => raster-fire-lut.in-0
-net raster-fire  => raster-fire-lut.in-1
-net laser-raster <= raster-fire-lut.out
 
 ########################
 
+loadrt comp names=laser-magic-z-comp
 addf laser-magic-z-comp servo-thread
 net zpos-fb <= axis.2.joint-pos-fb => laser-magic-z-comp.in0
 setp laser-magic-z-comp.in1 0.0
@@ -219,6 +176,9 @@ net laser-magic-z <= laser-magic-z-comp.out
 #                    (laser-raster |
 #                   ((laser-magic-z | laser-dout) & laser-pulsed))
 
+
+loadrt lut5 names=laser-final-lut
+addf laser-final-lut base-thread
 setp laser-final-lut.function 0xfeaa0000
 net  laser-raster      => laser-final-lut.in-0
 net  laser-dout        => laser-final-lut.in-1
