@@ -5,7 +5,8 @@
 loadrt threads name1=laser-thread period1=[EMCMOT]BASE_PERIOD
 
 loadrt trivkins
-loadrt [EMCMOT]EMCMOT base_period_nsec=[EMCMOT]BASE_PERIOD servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AXES
+loadrt tp
+loadrt [EMCMOT]EMCMOT base_period_nsec=[EMCMOT]BASE_PERIOD servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AXES kins=trivkins tp=tp
 loadrt probe_parport
 loadrt hal_parport cfg="0xd050 out"
 setp parport.0.reset-time 1000
