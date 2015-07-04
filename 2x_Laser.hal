@@ -153,7 +153,7 @@ net laser-raster <= laserraster.0.laser-on
 
 setp laserfreq.0.duration [LASER]PULSED_CUT_DURATION
 net current-vel motion.current-vel => laserfreq.0.velocity
-net laser-freq motion.spindle-speed-out => laserfreq.0.pulse-per-unit
+net laser-freq-speed motion.spindle-speed-out => laserfreq.0.pulse-per-unit
 net laser-freq-trick-axis-rev motion.spindle-reverse
 #net laser-dout => laserfreq.0.enable
 setp laserfreq.0.enable 1
