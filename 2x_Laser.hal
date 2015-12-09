@@ -8,7 +8,9 @@ loadrt trivkins
 loadrt tp
 loadrt [EMCMOT]EMCMOT base_period_nsec=[EMCMOT]BASE_PERIOD servo_period_nsec=[EMCMOT]SERVO_PERIOD num_joints=[TRAJ]AXES kins=trivkins tp=tp
 loadrt probe_parport
-loadrt hal_parport cfg="0xd050 out"
+#loadrt hal_parport cfg="0xd050 out"
+loadrt hal_parport cfg=df00 
+#loadrt hal_parport cfg="0 out" 
 setp parport.0.reset-time 1000
 loadrt stepgen step_type=0,0,0
 loadrt pwmgen output_type=0
